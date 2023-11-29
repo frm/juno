@@ -1,0 +1,110 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AUTH_ISSUER: district_ci
+  AUTH_SECRET_KEY: "1234567890"
+
+jobs:
+  test:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.0
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USERNAME: postgres
+          POSTGRES_HOSTNAME: 0.0.0.0
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Read .tool-versions
+        uses: marocchino/tool-versions-action@v1
+        id: versions
+
+      - uses: erlef/setup-elixir@v1
+        with:
+          elixir-version: ${{ steps.versions.outputs.elixir }}
+          otp-version: ${{ steps.versions.outputs.erlang }}
+
+      - name: "(elixir) deps cache"
+        uses: actions/cache@v3
+        with:
+          path: deps
+          key: test-deps-${{env.CACHE_VERSION}}-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            test-deps-${{env.CACHE_VERSION}}-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+            test-deps-${{env.CACHE_VERSION}}-${{ runner.os }}-mix-
+            test-deps-${{env.CACHE_VERSION}}-
+      - name: "(elixir) _build cache"
+        uses: actions/cache@v3
+        with:
+          path: _build
+          key: test-build-${{env.CACHE_VERSION}}-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            test-build-${{env.CACHE_VERSION}}-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+            test-build-${{env.CACHE_VERSION}}-${{ runner.os }}-mix-
+            test-build-${{env.CACHE_VERSION}}-
+      - run: mix deps.get
+      - run: mix test
+
+  lint:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.0
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USERNAME: postgres
+          POSTGRES_HOSTNAME: 0.0.0.0
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Read .tool-versions
+        uses: marocchino/tool-versions-action@v1
+        id: versions
+
+      - uses: erlef/setup-elixir@v1
+        with:
+          elixir-version: ${{ steps.versions.outputs.elixir }}
+          otp-version: ${{ steps.versions.outputs.erlang }}
+
+      - name: "(elixir) deps cache"
+        uses: actions/cache@v3
+        with:
+          path: deps
+          key: lint-deps-${{env.CACHE_VERSION}}-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            lint-deps-${{env.CACHE_VERSION}}-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+            lint-deps-${{env.CACHE_VERSION}}-${{ runner.os }}-mix-
+            lint-deps-${{env.CACHE_VERSION}}-
+      - name: "(elixir) _build cache"
+        uses: actions/cache@v3
+        with:
+          path: _build
+          key: lint-build-${{env.CACHE_VERSION}}-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            lint-build-${{env.CACHE_VERSION}}-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+            lint-build-${{env.CACHE_VERSION}}-${{ runner.os }}-mix-
+            lint-build-${{env.CACHE_VERSION}}-
+      - run: mix deps.get
+      - run: mix format --check-formatted
+      - run: mix credo --strict

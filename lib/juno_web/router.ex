@@ -11,6 +11,8 @@ defmodule JunoWeb.Router do
     get "/auth/:provider", JunoWeb.OAuthController, :request
     get "/auth/:provider/callback", JunoWeb.OAuthController, :callback
 
+    get "/healthcheck", JunoWeb.HealthcheckController, :index
+
     forward "/i", Absinthe.Plug.GraphiQL,
       schema: JunoWeb.Schema,
       interface: :playground
